@@ -9,7 +9,7 @@ type ReminderRow = {
   reminder_sent: boolean
   diagnosis: string
   treatment: string
-  pets: { owner_name: string; mobile: string; pet_name: string; pet_type: string } | null
+  pets: { owner_name: string; mobile: string; pet_name: string; pet_type: string }[] | null
 }
 
 export default function AdminRemindersPage() {
@@ -41,9 +41,10 @@ export default function AdminRemindersPage() {
   }
 
   const sendReminder = async (r: ReminderRow) => {
+    const pet = r.pets?.[0]
     const msg = r.reminder_message ||
-      `🐾 Dear ${r.pets?.owner_name}, ${r.pets?.pet_name} is due for a visit. Please call 094838 52691 to book a slot. - Paws Care & Heal`
-    window.open(`https://wa.me/91${r.pets?.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
+      `🐾 Dear ${pet?.owner_name}, ${pet?.pet_name} is due for a visit. Please call 094838 52691 to book a slot. - Paws Care & Heal`
+    window.open(`https://wa.me/91${pet?.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
     // Mark as sent
     await supabase.from('visits').update({ reminder_sent: true }).eq('id', r.id)
     setSent(p => new Set([...p, r.id]))
@@ -55,17 +56,19 @@ export default function AdminRemindersPage() {
     }
   }
 
-  const Card = ({ r, accent }: { r: ReminderRow; accent: string }) => (
+  const Card = ({ r, accent }: { r: ReminderRow; accent: string }) => {
+    const pet = r.pets?.[0]
+    return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-wrap items-center justify-between gap-4"
       style={{ borderLeft: `4px solid ${accent}` }}>
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
           style={{ background: `${accent}20` }}>
-          {r.pets?.pet_type === 'Cat' ? '🐈' : '🐕'}
+          {pet?.pet_type === 'Cat' ? '🐈' : '🐕'}
         </div>
         <div>
-          <div className="font-extrabold text-base">{r.pets?.pet_name}</div>
-          <div className="text-sm text-gray-500">{r.pets?.owner_name} · 📱 {r.pets?.mobile}</div>
+          <div className="font-extrabold text-base">{pet?.pet_name}</div>
+          <div className="text-sm text-gray-500">{pet?.owner_name} · 📱 {pet?.mobile}</div>
           <div className="text-xs text-gray-400 mt-1 max-w-md leading-snug">
             <span className="font-semibold text-gray-600">Last diagnosis: </span>{r.diagnosis}
           </div>
@@ -89,7 +92,7 @@ export default function AdminRemindersPage() {
         )}
       </div>
     </div>
-  )
+  )}
 
   const Section = ({ title, items, accent, sendAllFn }:
     { title: string; items: ReminderRow[]; accent: string; sendAllFn: () => void }) => (
