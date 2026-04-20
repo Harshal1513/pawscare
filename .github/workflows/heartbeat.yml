@@ -1,0 +1,35 @@
+# =============================================================
+# Supabase Heartbeat — Prevents Free Tier Auto-Pause
+# Runs every day at 8:00 AM IST (2:30 AM UTC) to keep
+# the Supabase project active and prevent 7-day inactivity pause.
+# =============================================================
+name: Supabase Heartbeat
+
+on:
+  schedule:
+    # 8:00 AM IST = 2:30 AM UTC (IST is UTC+5:30)
+    - cron: '30 2 * * *'
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase to prevent pause
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          echo "🐾 Pinging Supabase at $(date -u '+%Y-%m-%d %H:%M:%S UTC')..."
+          
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/pets?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}")
+          
+          if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 206 ]; then
+            echo "✅ Supabase is alive! HTTP $RESPONSE"
+          else
+            echo "⚠️ Unexpected response: HTTP $RESPONSE"
+            exit 1
+          fi
