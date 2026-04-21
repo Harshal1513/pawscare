@@ -54,6 +54,7 @@ export type Story = {
   rating?: number
   bg_color?: string
   is_featured?: boolean
+  image_url?: string
 }
 
 export type Service = {

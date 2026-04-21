@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Pet, Visit } from '@/lib/supabase'
-import { Search, Plus, X } from 'lucide-react'
+import { Search, Plus, X, Edit2, Trash2 } from 'lucide-react'
 
 type PetWithVisits = Pet & { visits: Visit[] }
 
@@ -20,11 +20,13 @@ export default function AdminRecordsPage() {
   const [selected, setSelected] = useState<PetWithVisits | null>(null)
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [showAddPet, setShowAddPet] = useState(false)
+  const [showEditPet, setShowEditPet] = useState(false)
   const [showAddVisit, setShowAddVisit] = useState(false)
   const [visitSaved, setVisitSaved] = useState(false)
   const [petSaved, setPetSaved] = useState(false)
 
   const [petForm, setPetForm] = useState({ owner_name:'', mobile:'', pet_name:'', pet_type:'Dog', pet_age:'' })
+  const [editForm, setEditForm] = useState({ owner_name:'', mobile:'', pet_name:'', pet_type:'Dog', pet_age:'' })
   const [visitForm, setVisitForm] = useState({
     visit_date: new Date().toISOString().split('T')[0],
     diagnosis: '', treatment: '', medicines: '',
@@ -70,10 +72,49 @@ export default function AdminRecordsPage() {
       setPetSaved(true); setTimeout(() => setPetSaved(false), 3000)
       setShowAddPet(false)
       setPetForm({ owner_name:'', mobile:'', pet_name:'', pet_type:'Dog', pet_age:'' })
-      // Auto-select the new pet
       setSelected({ ...data[0], visits: [] })
       setResults([])
     } else alert('Error: ' + error?.message)
+  }
+
+  const openEditPet = () => {
+    if (!selected) return
+    setEditForm({
+      owner_name: selected.owner_name,
+      mobile: selected.mobile,
+      pet_name: selected.pet_name,
+      pet_type: selected.pet_type,
+      pet_age: selected.pet_age || '',
+    })
+    setShowEditPet(true)
+  }
+
+  const updatePet = async () => {
+    if (!selected) return
+    const { owner_name, mobile, pet_name } = editForm
+    if (!owner_name.trim() || !mobile.trim() || !pet_name.trim()) { alert('Owner name, mobile and pet name are required'); return }
+    const { error } = await supabase.from('pets').update(editForm).eq('id', selected.id!)
+    if (!error) {
+      setShowEditPet(false)
+      const updated = { ...selected, ...editForm }
+      setSelected(updated)
+      // Update in results list as well
+      setResults(prev => prev.map(p => p.id === selected.id ? { ...p, ...editForm } : p))
+      setPetSaved(true); setTimeout(() => setPetSaved(false), 3000)
+    } else alert('Error updating pet: ' + error.message)
+  }
+
+  const deletePet = async () => {
+    if (!selected) return
+    if (!confirm(`Delete pet record for "${selected.pet_name}"? This will also delete all visit records. This cannot be undone.`)) return
+    // Delete visits first
+    await supabase.from('visits').delete().eq('pet_id', selected.id!)
+    const { error } = await supabase.from('pets').delete().eq('id', selected.id!)
+    if (!error) {
+      setSelected(null)
+      setResults(prev => prev.filter(p => p.id !== selected.id))
+      setQuery('')
+    } else alert('Error deleting pet: ' + error.message)
   }
 
   const saveVisit = async () => {
@@ -96,32 +137,31 @@ export default function AdminRecordsPage() {
       setVisitSaved(true); setTimeout(() => setVisitSaved(false), 3000)
       setShowAddVisit(false)
       setVisitForm({ visit_date: new Date().toISOString().split('T')[0], diagnosis:'', treatment:'', medicines:'', reminder_option:'30', custom_days:'', reminder_message:'' })
-      // Reload detail
       loadPetDetail(selected)
     } else alert('Error saving visit: ' + error.message)
   }
 
   return (
-    <div>
+    <div className="overflow-hidden">
       {visitSaved && <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4 text-green-700 font-semibold text-sm">✅ Visit record saved successfully!</div>}
-      {petSaved  && <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4 text-green-700 font-semibold text-sm">✅ Pet record created successfully!</div>}
+      {petSaved  && <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4 text-green-700 font-semibold text-sm">✅ Pet record saved successfully!</div>}
 
       {/* Search bar */}
-      <div className="flex gap-3 mb-5">
-        <div className="flex-1 relative">
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex-1 min-w-[200px] relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
           <input value={query} onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && searchPets()}
-            placeholder="Search by pet name, owner name, or mobile number…"
+            placeholder="Search by pet name, owner or mobile…"
             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors"/>
         </div>
         <button onClick={searchPets}
-          className="flex items-center gap-2 text-white font-extrabold text-sm px-5 py-3 rounded-xl transition-all hover:-translate-y-0.5"
+          className="flex items-center gap-2 text-white font-extrabold text-sm px-4 py-3 rounded-xl transition-all hover:-translate-y-0.5"
           style={{ background: '#F59E0B' }}>
           🔍 Search
         </button>
         <button onClick={() => { setShowAddPet(!showAddPet); setSelected(null); setResults([]) }}
-          className="flex items-center gap-2 text-white font-extrabold text-sm px-5 py-3 rounded-xl transition-all hover:-translate-y-0.5"
+          className="flex items-center gap-2 text-white font-extrabold text-sm px-4 py-3 rounded-xl transition-all hover:-translate-y-0.5"
           style={{ background: '#111827' }}>
           <Plus size={16}/> New Pet
         </button>
@@ -157,8 +197,38 @@ export default function AdminRecordsPage() {
         </div>
       )}
 
+      {/* Edit Pet Form */}
+      {showEditPet && selected && (
+        <div className="bg-white rounded-2xl border-2 p-6 mb-5" style={{ borderColor: '#5BC8D4' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-extrabold text-base" style={{ color:'#0891B2' }}>✏️ Edit Pet Record — {selected.pet_name}</h3>
+            <button onClick={() => setShowEditPet(false)}><X size={18} className="text-gray-400 hover:text-gray-700"/></button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Owner Name *</label>
+              <input value={editForm.owner_name} onChange={e=>setEditForm(p=>({...p,owner_name:e.target.value}))} className={inp}/></div>
+            <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Mobile *</label>
+              <input value={editForm.mobile} onChange={e=>setEditForm(p=>({...p,mobile:e.target.value}))} maxLength={10} className={inp}/></div>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4 mb-5">
+            <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Pet Name *</label>
+              <input value={editForm.pet_name} onChange={e=>setEditForm(p=>({...p,pet_name:e.target.value}))} className={inp}/></div>
+            <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Pet Type</label>
+              <select value={editForm.pet_type} onChange={e=>setEditForm(p=>({...p,pet_type:e.target.value}))} className={inp}>
+                <option>Dog</option><option>Cat</option><option>Rabbit</option><option>Bird</option><option>Other</option>
+              </select></div>
+            <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Age</label>
+              <input value={editForm.pet_age} onChange={e=>setEditForm(p=>({...p,pet_age:e.target.value}))} className={inp}/></div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={updatePet} className="text-white font-extrabold text-sm px-6 py-2.5 rounded-full" style={{ background:'#5BC8D4' }}>Update Record</button>
+            <button onClick={() => setShowEditPet(false)} className="font-bold text-sm px-6 py-2.5 rounded-full border border-gray-200 text-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* Search results list + detail panel */}
-      {!showAddPet && (
+      {!showAddPet && !showEditPet && (
         <div className={`grid gap-5 ${selected ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
           {/* Results list */}
           {results.length > 0 && (
@@ -186,12 +256,12 @@ export default function AdminRecordsPage() {
 
           {/* Detail panel */}
           {selected ? (
-            <div>
+            <div className="min-w-0">
               {/* Pet header */}
               <div className="bg-white rounded-2xl border-2 p-5 mb-4" style={{ borderColor: '#F59E0B' }}>
-                <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-start justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center text-3xl"
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center text-3xl flex-shrink-0"
                       style={{ background: '#FEF3C7' }}>
                       {selected.pet_type === 'Cat' ? '🐈' : '🐕'}
                     </div>
@@ -201,11 +271,21 @@ export default function AdminRecordsPage() {
                       <div className="text-sm text-gray-500">👤 {selected.owner_name} · 📞 {selected.mobile}</div>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddVisit(!showAddVisit)}
-                    className="flex items-center gap-2 text-white font-extrabold text-sm px-5 py-2.5 rounded-full"
-                    style={{ background: showAddVisit ? '#6B7280' : '#F59E0B' }}>
-                    {showAddVisit ? '✕ Cancel' : '+ Add Visit'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={openEditPet}
+                      className="flex items-center gap-1.5 font-extrabold text-sm px-4 py-2.5 rounded-full border-2 border-gray-200 text-gray-700 hover:border-amber-400 transition-colors">
+                      <Edit2 size={14}/> Edit
+                    </button>
+                    <button onClick={deletePet}
+                      className="flex items-center gap-1.5 font-extrabold text-sm px-4 py-2.5 rounded-full border-2 border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+                      <Trash2 size={14}/> Delete
+                    </button>
+                    <button onClick={() => setShowAddVisit(!showAddVisit)}
+                      className="flex items-center gap-2 text-white font-extrabold text-sm px-5 py-2.5 rounded-full"
+                      style={{ background: showAddVisit ? '#6B7280' : '#F59E0B' }}>
+                      {showAddVisit ? '✕ Cancel' : '+ Add Visit'}
+                    </button>
+                  </div>
                 </div>
               </div>
 

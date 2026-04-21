@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Story } from '@/lib/supabase'
-import { Plus, Trash2, Edit2, X } from 'lucide-react'
+import { Plus, Trash2, Edit2, X, Upload } from 'lucide-react'
 
 const COLORS = ['#F5A623','#5BC8D4','#9333EA','#EC4899','#111827','#0891B2','#10B981']
 
@@ -13,9 +13,13 @@ export default function AdminStoriesPage() {
   const [editing, setEditing] = useState<Story | null>(null)
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState<Story>({
-    pet_name:'', pet_type:'Dog', owner_name:'', problem_tags:[], story:'', rating:5, bg_color:'#F5A623', is_featured:false,
+    pet_name:'', pet_type:'Dog', owner_name:'', problem_tags:[], story:'', rating:5, bg_color:'#F5A623', is_featured:false, image_url:'',
   })
   const [tagsInput, setTagsInput] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string>('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { load() }, [])
 
@@ -27,8 +31,10 @@ export default function AdminStoriesPage() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ pet_name:'', pet_type:'Dog', owner_name:'', problem_tags:[], story:'', rating:5, bg_color:'#F5A623', is_featured:false })
+    setForm({ pet_name:'', pet_type:'Dog', owner_name:'', problem_tags:[], story:'', rating:5, bg_color:'#F5A623', is_featured:false, image_url:'' })
     setTagsInput('')
+    setImageFile(null)
+    setImagePreview('')
     setShowForm(true)
   }
 
@@ -36,12 +42,50 @@ export default function AdminStoriesPage() {
     setEditing(s)
     setForm(s)
     setTagsInput((s.problem_tags || []).join(', '))
+    setImageFile(null)
+    setImagePreview(s.image_url || '')
     setShowForm(true)
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB'); return }
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onload = ev => setImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile) return form.image_url || null
+    setUploading(true)
+    try {
+      const ext = imageFile.name.split('.').pop()
+      const fileName = `story-${Date.now()}.${ext}`
+      const { error } = await supabase.storage
+        .from('pet-images')
+        .upload(fileName, imageFile, { upsert: true })
+      if (error) {
+        // Storage bucket may not exist — fall back to base64 data URL stored inline
+        console.warn('Storage upload failed, using data URL:', error.message)
+        return imagePreview // use the base64 preview
+      }
+      const { data } = supabase.storage.from('pet-images').getPublicUrl(fileName)
+      return data.publicUrl
+    } finally {
+      setUploading(false)
+    }
   }
 
   const save = async () => {
     if (!form.pet_name.trim() || !form.story.trim()) { alert('Pet name and story are required'); return }
-    const payload = { ...form, problem_tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean) }
+    const imageUrl = await uploadImage()
+    const payload = {
+      ...form,
+      problem_tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
+      image_url: imageUrl || '',
+    }
     const { error } = editing?.id
       ? await supabase.from('stories').update(payload).eq('id', editing.id)
       : await supabase.from('stories').insert([payload])
@@ -97,6 +141,43 @@ export default function AdminStoriesPage() {
             <textarea value={form.story} onChange={e=>setForm(p=>({...p,story:e.target.value}))}
               placeholder="Describe the pet's journey and recovery…" rows={3}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/></div>
+
+          {/* Image Upload */}
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Pet Photo</label>
+            <div className="flex items-start gap-4">
+              {imagePreview ? (
+                <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 border-2 border-amber-300">
+                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover"/>
+                  <button
+                    onClick={() => { setImageFile(null); setImagePreview(''); setForm(p => ({...p, image_url:''})); if(fileRef.current) fileRef.current.value='' }}
+                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0 text-gray-400 text-3xl bg-gray-50">
+                  🐾
+                </div>
+              )}
+              <div className="flex-1">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  id="story-image-upload"
+                />
+                <label htmlFor="story-image-upload"
+                  className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-amber-300 rounded-xl px-4 py-3 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors w-fit">
+                  <Upload size={16}/> {imagePreview ? 'Change Photo' : 'Upload Pet Photo'}
+                </label>
+                <p className="text-xs text-gray-400 mt-2">JPG/PNG/WebP · Max 5MB<br/>This photo will appear on the story card</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4 mb-5">
             <div><label className="block text-xs font-bold text-gray-600 mb-2">Card Background Color</label>
               <div className="flex gap-2 flex-wrap">
@@ -116,8 +197,8 @@ export default function AdminStoriesPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button onClick={save} className="text-white font-extrabold text-sm px-6 py-2.5 rounded-full" style={{ background:'#F59E0B' }}>
-              {editing ? 'Update Story' : 'Save Story'}
+            <button onClick={save} disabled={uploading} className="text-white font-extrabold text-sm px-6 py-2.5 rounded-full disabled:opacity-60" style={{ background:'#F59E0B' }}>
+              {uploading ? '⏳ Uploading…' : editing ? 'Update Story' : 'Save Story'}
             </button>
             <button onClick={()=>setShowForm(false)} className="font-bold text-sm px-6 py-2.5 rounded-full border border-gray-200 text-gray-600 hover:border-amber-400 transition-colors">
               Cancel
@@ -139,9 +220,13 @@ export default function AdminStoriesPage() {
         <div className="grid md:grid-cols-2 gap-4">
           {stories.map(s => (
             <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="h-28 flex items-center justify-center text-6xl relative"
+              <div className="h-32 flex items-center justify-center text-6xl relative"
                 style={{ background: s.bg_color || '#F5A623' }}>
-                {s.pet_type === 'Cat' ? '🐈' : s.pet_type === 'Dog' ? '🐕' : '🐾'}
+                {s.image_url ? (
+                  <img src={s.image_url} alt={s.pet_name} className="w-full h-full object-cover"/>
+                ) : (
+                  <span>{s.pet_type === 'Cat' ? '🐈' : s.pet_type === 'Dog' ? '🐕' : '🐾'}</span>
+                )}
                 {s.is_featured && (
                   <span className="absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-full text-white"
                     style={{ background:'rgba(0,0,0,.4)' }}>⭐ Featured</span>

@@ -12,14 +12,13 @@ export default function AdminLoginPage() {
     setLoading(true)
     setError('')
     setTimeout(() => {
-      // Demo credentials — in production use proper auth
       if (creds.username === 'admin' && creds.password === 'clinic2026') {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('admin_auth', '1')
         }
         router.push('/admin/dashboard')
       } else {
-        setError('Invalid credentials. Try admin / clinic2026')
+        setError('Invalid username or password. Please try again.')
         setLoading(false)
       }
     }, 600)
@@ -44,7 +43,7 @@ export default function AdminLoginPage() {
               value={creds.username}
               onChange={e => setCreds(p => ({ ...p, username: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="admin"
+              placeholder="Enter username"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors"
             />
           </div>
@@ -68,10 +67,6 @@ export default function AdminLoginPage() {
             {loading ? '⏳ Signing in…' : '🔐 Sign In'}
           </button>
         </div>
-
-        <p className="text-center text-xs text-gray-400 mt-4 md:mt-5">
-          Demo: <strong>admin</strong> / <strong>clinic2026</strong>
-        </p>
       </div>
     </div>
   )

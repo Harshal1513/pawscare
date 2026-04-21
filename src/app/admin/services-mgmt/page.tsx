@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Service } from '@/lib/supabase'
-import { Save, Plus, X } from 'lucide-react'
+import { Save, Plus, X, Trash2 } from 'lucide-react'
 
 export default function AdminServicesMgmtPage() {
   const [services, setServices] = useState<Service[]>([])
@@ -34,6 +34,14 @@ export default function AdminServicesMgmtPage() {
       setEdits(p => { const n = {...p}; delete n[id]; return n })
       load()
     } else alert('Error: ' + error.message)
+  }
+
+  const deleteService = async (id: string, name: string) => {
+    if (!confirm(`Delete service "${name}"? This cannot be undone.`)) return
+    const { error } = await supabase.from('services').delete().eq('id', id)
+    if (!error) {
+      load()
+    } else alert('Error deleting service: ' + error.message)
   }
 
   const addService = async () => {
@@ -95,10 +103,16 @@ export default function AdminServicesMgmtPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <span className="font-extrabold text-base">All Services &amp; Prices</span>
-          <span className="text-xs text-gray-400">Edit any price and click Save</span>
+          <span className="text-xs text-gray-400">Edit any price and click Save · Changes reflect live on website</span>
         </div>
         {loading ? (
           <div className="p-10 text-center text-amber-500 font-bold">Loading…</div>
+        ) : services.length === 0 ? (
+          <div className="p-10 text-center text-gray-400">
+            <div className="text-4xl mb-3">🩺</div>
+            <div className="font-semibold text-gray-500">No services added yet</div>
+            <div className="text-sm mt-1">Click &ldquo;Add Service&rdquo; above to add your first service</div>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -108,7 +122,7 @@ export default function AdminServicesMgmtPage() {
                 <th className="px-4 py-3 text-left">Duration</th>
                 <th className="px-4 py-3 text-left">Price</th>
                 <th className="px-4 py-3 text-left">Active</th>
-                <th className="px-4 py-3 text-left">Action</th>
+                <th className="px-4 py-3 text-left">Actions</th>
               </tr></thead>
               <tbody>
                 {services.map((s, i) => {
@@ -118,7 +132,7 @@ export default function AdminServicesMgmtPage() {
                       <td className="px-4 py-3.5">
                         <input value={e.name !== undefined ? e.name : (s.name||'')}
                           onChange={ev => updateEdit(s.id!, 'name', ev.target.value)}
-                          className={`${inp} w-full min-w-[200px]`}/>
+                          className={`${inp} w-full min-w-[180px]`}/>
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">
@@ -145,17 +159,24 @@ export default function AdminServicesMgmtPage() {
                           style={{ width:16, height:16, accentColor:'#F59E0B', cursor:'pointer' }}/>
                       </td>
                       <td className="px-4 py-3.5">
-                        {savedIds.has(s.id!) ? (
-                          <span className="text-green-600 text-xs font-bold">✅ Saved!</span>
-                        ) : (
-                          <button onClick={() => saveOne(s.id!)}
-                            disabled={!edits[s.id!]}
-                            className={`flex items-center gap-1.5 text-xs font-extrabold px-4 py-2 rounded-full text-white transition-all
-                              ${edits[s.id!] ? 'hover:opacity-90' : 'opacity-40 cursor-not-allowed'}`}
-                            style={{ background: edits[s.id!] ? '#F59E0B' : '#9CA3AF' }}>
-                            <Save size={12}/> Save
+                        <div className="flex items-center gap-2">
+                          {savedIds.has(s.id!) ? (
+                            <span className="text-green-600 text-xs font-bold">✅ Saved!</span>
+                          ) : (
+                            <button onClick={() => saveOne(s.id!)}
+                              disabled={!edits[s.id!]}
+                              className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-2 rounded-full text-white transition-all
+                                ${edits[s.id!] ? 'hover:opacity-90' : 'opacity-40 cursor-not-allowed'}`}
+                              style={{ background: edits[s.id!] ? '#F59E0B' : '#9CA3AF' }}>
+                              <Save size={12}/> Save
+                            </button>
+                          )}
+                          <button onClick={() => deleteService(s.id!, s.name)}
+                            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-red-100 transition-colors flex-shrink-0"
+                            title="Delete service">
+                            <Trash2 size={13} className="text-red-500"/>
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   )
