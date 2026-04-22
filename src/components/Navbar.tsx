@@ -54,7 +54,8 @@ export default function Navbar() {
         <div className="hidden lg:block text-right text-xs text-gray-500 leading-[1.7] shrink-0">
           <div className="font-bold text-[13px] text-gray-900">Paws Care &amp; Heal, Belagavi</div>
           <div>094838 52691</div>
-          <div>9:00 – 21:00 (Mon–Sat)</div>
+          <div>☀️ 10:30 AM – 2:00 PM &nbsp;·&nbsp; 🌙 5:30 – 8:30 PM</div>
+          <div className="text-[11px] text-gray-400">Mon – Sat</div>
         </div>
 
         {/* Mobile burger */}
