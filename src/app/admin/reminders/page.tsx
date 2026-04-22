@@ -12,12 +12,20 @@ type ReminderRow = {
   pets: { owner_name: string; mobile: string; pet_name: string; pet_type: string }[] | null
 }
 
+function makeWaUrl(r: ReminderRow) {
+  const pet = r.pets?.[0]
+  const msg = r.reminder_message ||
+    `🐾 Dear ${pet?.owner_name}, ${pet?.pet_name} is due for a visit. Please call 094838 52691 to book a slot. - Paws Care & Heal`
+  return `https://wa.me/91${pet?.mobile}?text=${encodeURIComponent(msg)}`
+}
+
 export default function AdminRemindersPage() {
-  const [today, setToday]     = useState<ReminderRow[]>([])
+  const [today, setToday]       = useState<ReminderRow[]>([])
   const [tomorrow, setTomorrow] = useState<ReminderRow[]>([])
-  const [soon, setSoon]       = useState<ReminderRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sent, setSent]       = useState<Set<string>>(new Set())
+  const [soon, setSoon]         = useState<ReminderRow[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [sent, setSent]         = useState<Set<string>>(new Set())
+  const [sendingAll, setSendingAll] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -40,24 +48,38 @@ export default function AdminRemindersPage() {
     setLoading(false)
   }
 
-  const sendReminder = async (r: ReminderRow) => {
-    const pet = r.pets?.[0]
-    const msg = r.reminder_message ||
-      `🐾 Dear ${pet?.owner_name}, ${pet?.pet_name} is due for a visit. Please call 094838 52691 to book a slot. - Paws Care & Heal`
-    window.open(`https://wa.me/91${pet?.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
-    // Mark as sent
-    await supabase.from('visits').update({ reminder_sent: true }).eq('id', r.id)
-    setSent(p => new Set([...p, r.id]))
+  const markSent = async (id: string) => {
+    await supabase.from('visits').update({ reminder_sent: true }).eq('id', id)
+    setSent(p => new Set([...p, id]))
   }
 
+  // Send All: open WhatsApp links one-by-one using anchor clicks, then mark all as sent
   const sendAll = async (list: ReminderRow[]) => {
-    for (const r of list) {
-      if (!sent.has(r.id)) await sendReminder(r)
+    const pending = list.filter(r => !sent.has(r.id))
+    if (pending.length === 0) return
+    setSendingAll(true)
+    for (let i = 0; i < pending.length; i++) {
+      const r = pending[i]
+      const url = makeWaUrl(r)
+      // Open each link — user must allow popups or we fallback
+      const opened = window.open(url, `_wa_${r.id}`)
+      if (!opened) {
+        // Popup blocked — give user direct link via alert
+        alert(`Popup blocked for ${r.pets?.[0]?.pet_name}. Please open this link manually:\n${url}`)
+      }
+      await markSent(r.id)
+      if (i < pending.length - 1) {
+        // Small pause between each to prevent all links opening at once
+        await new Promise(res => setTimeout(res, 800))
+      }
     }
+    setSendingAll(false)
   }
 
   const Card = ({ r, accent }: { r: ReminderRow; accent: string }) => {
-    const pet = r.pets?.[0]
+    const isSent = sent.has(r.id)
+    const waUrl  = makeWaUrl(r)
+    const pet    = r.pets?.[0]
     return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-wrap items-center justify-between gap-4"
       style={{ borderLeft: `4px solid ${accent}` }}>
@@ -81,14 +103,20 @@ export default function AdminRemindersPage() {
         <div className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: accent }}>
           📅 {r.next_reminder_date}
         </div>
-        {sent.has(r.id) ? (
+        {isSent ? (
           <div className="flex items-center gap-1.5 text-green-600 font-bold text-sm">✅ Sent!</div>
         ) : (
-          <button onClick={() => sendReminder(r)}
+          /* Use <a> tag so mobile browsers open WhatsApp directly without popup blocking */
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => markSent(r.id)}
             className="flex items-center gap-1.5 text-white font-extrabold text-sm px-4 py-2 rounded-full transition-all hover:opacity-90"
-            style={{ background: '#25D366' }}>
+            style={{ background: '#25D366' }}
+          >
             📱 Send WhatsApp
-          </button>
+          </a>
         )}
       </div>
     </div>
@@ -105,10 +133,10 @@ export default function AdminRemindersPage() {
               {items.length}
             </span>
           </h2>
-          <button onClick={sendAllFn}
-            className="text-xs font-bold px-4 py-2 rounded-full text-white transition-all hover:opacity-90"
+          <button onClick={sendAllFn} disabled={sendingAll}
+            className="text-xs font-bold px-4 py-2 rounded-full text-white transition-all hover:opacity-90 disabled:opacity-50"
             style={{ background: '#25D366' }}>
-            📱 Send All
+            {sendingAll ? '⏳ Sending…' : '📱 Send All'}
           </button>
         </div>
         <div className="space-y-3">
@@ -125,10 +153,10 @@ export default function AdminRemindersPage() {
         <div className="bg-red-100 text-red-700 font-bold text-sm px-4 py-2 rounded-full">🔴 Due Today: {today.length}</div>
         <div className="bg-amber-100 text-amber-700 font-bold text-sm px-4 py-2 rounded-full">🟡 Due Tomorrow: {tomorrow.length}</div>
         <div className="bg-green-100 text-green-700 font-bold text-sm px-4 py-2 rounded-full">🟢 Due in 2-3 days: {soon.length}</div>
-        <button onClick={() => sendAll([...today, ...tomorrow, ...soon])}
-          className="ml-auto text-white font-extrabold text-sm px-5 py-2 rounded-full transition-all hover:opacity-90"
+        <button onClick={() => sendAll([...today, ...tomorrow, ...soon])} disabled={sendingAll}
+          className="ml-auto text-white font-extrabold text-sm px-5 py-2 rounded-full transition-all hover:opacity-90 disabled:opacity-50"
           style={{ background: '#111827' }}>
-          📱 Send All Due
+          {sendingAll ? '⏳ Sending…' : '📱 Send All Due'}
         </button>
       </div>
 

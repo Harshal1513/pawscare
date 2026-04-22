@@ -14,6 +14,12 @@ const REMINDER_OPTIONS = [
   { value: 'custom', label: 'Custom days' },
 ]
 
+const EMPTY_VISIT_FORM = {
+  visit_date: new Date().toISOString().split('T')[0],
+  diagnosis: '', treatment: '', medicines: '',
+  reminder_option: '30', custom_days: '', reminder_message: '',
+}
+
 export default function AdminRecordsPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Pet[]>([])
@@ -22,26 +28,24 @@ export default function AdminRecordsPage() {
   const [showAddPet, setShowAddPet] = useState(false)
   const [showEditPet, setShowEditPet] = useState(false)
   const [showAddVisit, setShowAddVisit] = useState(false)
+  const [editingVisit, setEditingVisit] = useState<Visit | null>(null)
   const [visitSaved, setVisitSaved] = useState(false)
   const [petSaved, setPetSaved] = useState(false)
 
   const [petForm, setPetForm] = useState({ owner_name:'', mobile:'', pet_name:'', pet_type:'Dog', pet_age:'' })
   const [editForm, setEditForm] = useState({ owner_name:'', mobile:'', pet_name:'', pet_type:'Dog', pet_age:'' })
-  const [visitForm, setVisitForm] = useState({
-    visit_date: new Date().toISOString().split('T')[0],
-    diagnosis: '', treatment: '', medicines: '',
-    reminder_option: '30', custom_days: '', reminder_message: '',
-  })
+  const [visitForm, setVisitForm] = useState(EMPTY_VISIT_FORM)
+  const [editVisitForm, setEditVisitForm] = useState(EMPTY_VISIT_FORM)
 
   const inp = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors bg-white'
 
-  const calcReminderDate = () => {
-    const base = new Date(visitForm.visit_date || new Date())
-    const days = visitForm.reminder_option === 'custom'
-      ? (parseInt(visitForm.custom_days) || 30)
-      : visitForm.reminder_option === '180' ? 180
-      : visitForm.reminder_option === '365' ? 365
-      : parseInt(visitForm.reminder_option)
+  const calcReminderDate = (form: typeof visitForm) => {
+    const base = new Date(form.visit_date || new Date())
+    const days = form.reminder_option === 'custom'
+      ? (parseInt(form.custom_days) || 30)
+      : form.reminder_option === '180' ? 180
+      : form.reminder_option === '365' ? 365
+      : parseInt(form.reminder_option)
     base.setDate(base.getDate() + days)
     return base.toISOString().split('T')[0]
   }
@@ -62,6 +66,7 @@ export default function AdminRecordsPage() {
       .select('*').eq('pet_id', pet.id!).order('visit_date', { ascending: false })
     setSelected({ ...pet, visits: visits || [] })
     setShowAddVisit(false)
+    setEditingVisit(null)
   }
 
   const savePet = async () => {
@@ -98,7 +103,6 @@ export default function AdminRecordsPage() {
       setShowEditPet(false)
       const updated = { ...selected, ...editForm }
       setSelected(updated)
-      // Update in results list as well
       setResults(prev => prev.map(p => p.id === selected.id ? { ...p, ...editForm } : p))
       setPetSaved(true); setTimeout(() => setPetSaved(false), 3000)
     } else alert('Error updating pet: ' + error.message)
@@ -107,7 +111,6 @@ export default function AdminRecordsPage() {
   const deletePet = async () => {
     if (!selected) return
     if (!confirm(`Delete pet record for "${selected.pet_name}"? This will also delete all visit records. This cannot be undone.`)) return
-    // Delete visits first
     await supabase.from('visits').delete().eq('pet_id', selected.id!)
     const { error } = await supabase.from('pets').delete().eq('id', selected.id!)
     if (!error) {
@@ -122,7 +125,7 @@ export default function AdminRecordsPage() {
     if (!visitForm.diagnosis.trim() || !visitForm.treatment.trim()) {
       alert('Diagnosis and Treatment are required'); return
     }
-    const reminderDate = calcReminderDate()
+    const reminderDate = calcReminderDate(visitForm)
     const { error } = await supabase.from('visits').insert([{
       pet_id: selected.id!,
       visit_date: visitForm.visit_date,
@@ -136,9 +139,55 @@ export default function AdminRecordsPage() {
     if (!error) {
       setVisitSaved(true); setTimeout(() => setVisitSaved(false), 3000)
       setShowAddVisit(false)
-      setVisitForm({ visit_date: new Date().toISOString().split('T')[0], diagnosis:'', treatment:'', medicines:'', reminder_option:'30', custom_days:'', reminder_message:'' })
+      setVisitForm(EMPTY_VISIT_FORM)
       loadPetDetail(selected)
     } else alert('Error saving visit: ' + error.message)
+  }
+
+  // ── Edit visit ──
+  const openEditVisit = (v: Visit) => {
+    setEditingVisit(v)
+    setShowAddVisit(false)
+    // Reverse-calculate reminder_option from days diff
+    setEditVisitForm({
+      visit_date: v.visit_date,
+      diagnosis: v.diagnosis,
+      treatment: v.treatment,
+      medicines: v.medicines || '',
+      reminder_option: 'custom',
+      custom_days: '',
+      reminder_message: v.reminder_message || '',
+    })
+  }
+
+  const updateVisit = async () => {
+    if (!selected || !editingVisit) return
+    if (!editVisitForm.diagnosis.trim() || !editVisitForm.treatment.trim()) {
+      alert('Diagnosis and Treatment are required'); return
+    }
+    const reminderDate = calcReminderDate(editVisitForm)
+    const { error } = await supabase.from('visits').update({
+      visit_date: editVisitForm.visit_date,
+      diagnosis: editVisitForm.diagnosis,
+      treatment: editVisitForm.treatment,
+      medicines: editVisitForm.medicines,
+      next_reminder_date: reminderDate,
+      reminder_message: editVisitForm.reminder_message,
+    }).eq('id', editingVisit.id!)
+    if (!error) {
+      setVisitSaved(true); setTimeout(() => setVisitSaved(false), 3000)
+      setEditingVisit(null)
+      loadPetDetail(selected)
+    } else alert('Error updating visit: ' + error.message)
+  }
+
+  const deleteVisit = async (v: Visit) => {
+    if (!selected) return
+    if (!confirm(`Delete this visit record from ${v.visit_date}? This cannot be undone.`)) return
+    const { error } = await supabase.from('visits').delete().eq('id', v.id!)
+    if (!error) {
+      setSelected(prev => prev ? { ...prev, visits: prev.visits.filter(x => x.id !== v.id) } : null)
+    } else alert('Error deleting visit: ' + error.message)
   }
 
   return (
@@ -280,7 +329,7 @@ export default function AdminRecordsPage() {
                       className="flex items-center gap-1.5 font-extrabold text-sm px-4 py-2.5 rounded-full border-2 border-red-200 text-red-600 hover:bg-red-50 transition-colors">
                       <Trash2 size={14}/> Delete
                     </button>
-                    <button onClick={() => setShowAddVisit(!showAddVisit)}
+                    <button onClick={() => { setShowAddVisit(!showAddVisit); setEditingVisit(null) }}
                       className="flex items-center gap-2 text-white font-extrabold text-sm px-5 py-2.5 rounded-full"
                       style={{ background: showAddVisit ? '#6B7280' : '#F59E0B' }}>
                       {showAddVisit ? '✕ Cancel' : '+ Add Visit'}
@@ -349,7 +398,7 @@ export default function AdminRecordsPage() {
                       rows={3}
                       className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/>
                     <div className="mt-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background:'#E0F7FA', color:'#0891B2' }}>
-                      📅 Reminder will be set for: <strong>{calcReminderDate()}</strong>
+                      📅 Reminder will be set for: <strong>{calcReminderDate(visitForm)}</strong>
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -357,6 +406,79 @@ export default function AdminRecordsPage() {
                       className="flex items-center gap-2 text-white font-extrabold text-sm px-6 py-2.5 rounded-full"
                       style={{ background: '#5BC8D4' }}>✅ Save Visit</button>
                     <button onClick={() => setShowAddVisit(false)}
+                      className="font-bold text-sm px-6 py-2.5 rounded-full border border-gray-200 text-gray-600 hover:border-amber-400 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Visit Form */}
+              {editingVisit && (
+                <div className="bg-white rounded-2xl border-2 p-6 mb-4" style={{ borderColor: '#F59E0B' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-extrabold text-base" style={{ color: '#D97706' }}>
+                      ✏️ Edit Visit — {editingVisit.visit_date}
+                    </h3>
+                    <button onClick={() => setEditingVisit(null)}><X size={18} className="text-gray-400 hover:text-gray-700"/></button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1.5">Visit Date</label>
+                      <input type="date" value={editVisitForm.visit_date}
+                        onChange={e => setEditVisitForm(p => ({ ...p, visit_date: e.target.value }))} className={inp}/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1.5">Next Reminder</label>
+                      <select value={editVisitForm.reminder_option}
+                        onChange={e => setEditVisitForm(p => ({ ...p, reminder_option: e.target.value }))} className={inp}>
+                        {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {editVisitForm.reminder_option === 'custom' && (
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-gray-600 mb-1.5">Custom days (number)</label>
+                      <input type="number" value={editVisitForm.custom_days}
+                        onChange={e => setEditVisitForm(p => ({ ...p, custom_days: e.target.value }))}
+                        placeholder="e.g. 45" className={inp}/>
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5">Diagnosis / Problem *</label>
+                    <textarea value={editVisitForm.diagnosis}
+                      onChange={e => setEditVisitForm(p => ({ ...p, diagnosis: e.target.value }))}
+                      rows={2} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5">Treatment Given *</label>
+                    <textarea value={editVisitForm.treatment}
+                      onChange={e => setEditVisitForm(p => ({ ...p, treatment: e.target.value }))}
+                      rows={2} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5">Medicines Prescribed</label>
+                    <textarea value={editVisitForm.medicines}
+                      onChange={e => setEditVisitForm(p => ({ ...p, medicines: e.target.value }))}
+                      rows={2} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/>
+                  </div>
+                  <div className="mb-5">
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5">
+                      WhatsApp Reminder Message{' '}
+                      <span className="font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <textarea value={editVisitForm.reminder_message}
+                      onChange={e => setEditVisitForm(p => ({ ...p, reminder_message: e.target.value }))}
+                      rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-amber-400 transition-colors resize-vertical"/>
+                    <div className="mt-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background:'#FEF3C7', color:'#D97706' }}>
+                      📅 Reminder will be set for: <strong>{calcReminderDate(editVisitForm)}</strong>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={updateVisit}
+                      className="flex items-center gap-2 text-white font-extrabold text-sm px-6 py-2.5 rounded-full"
+                      style={{ background: '#F59E0B' }}>✅ Update Visit</button>
+                    <button onClick={() => setEditingVisit(null)}
                       className="font-bold text-sm px-6 py-2.5 rounded-full border border-gray-200 text-gray-600 hover:border-amber-400 transition-colors">
                       Cancel
                     </button>
@@ -384,7 +506,7 @@ export default function AdminRecordsPage() {
                         <th className="px-4 py-3 text-left">Treatment</th>
                         <th className="px-4 py-3 text-left">Medicines</th>
                         <th className="px-4 py-3 text-left">Next Reminder</th>
-                        <th className="px-4 py-3 text-left">Action</th>
+                        <th className="px-4 py-3 text-left">Actions</th>
                       </tr></thead>
                       <tbody>
                         {selected.visits.map((v, i) => {
@@ -414,14 +536,28 @@ export default function AdminRecordsPage() {
                                 ) : '—'}
                               </td>
                               <td className="px-4 py-3.5">
-                                {v.next_reminder_date && !isReminded && (
-                                  <a href={`https://wa.me/91${selected.mobile}?text=${encodeURIComponent(waMsg)}`}
-                                    target="_blank" rel="noreferrer"
-                                    className="text-xs font-bold px-3 py-1.5 rounded-full text-white whitespace-nowrap"
-                                    style={{ background: '#25D366' }}>
-                                    📱 Send Reminder
-                                  </a>
-                                )}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {v.next_reminder_date && !isReminded && (
+                                    <a href={`https://wa.me/91${selected.mobile}?text=${encodeURIComponent(waMsg)}`}
+                                      target="_blank" rel="noreferrer"
+                                      className="text-xs font-bold px-3 py-1.5 rounded-full text-white whitespace-nowrap"
+                                      style={{ background: '#25D366' }}>
+                                      📱 Send
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => openEditVisit(v)}
+                                    title="Edit visit"
+                                    className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-full border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors whitespace-nowrap">
+                                    <Edit2 size={11}/> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteVisit(v)}
+                                    title="Delete visit"
+                                    className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">
+                                    <Trash2 size={11}/> Del
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           )

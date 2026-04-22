@@ -92,12 +92,12 @@ export default function HomePage() {
           </div>
         </div>
         {/* Cat image */}
-        <div className="relative overflow-hidden bg-amber-50 max-sm:h-64 md:h-auto max-sm:rounded-t-3xl md:rounded-none flex items-center justify-center">
+        <div className="relative bg-amber-50 max-sm:h-[360px] md:h-auto flex items-center justify-center">
           <img
             src="/images/hero-cat.png"
             alt="Happy pet at Paws Care and Heal"
-            className="w-full h-full object-cover"
-            style={{ objectPosition: 'center center' }}
+            className="max-sm:w-auto max-sm:h-full max-sm:object-contain md:w-full md:h-full md:absolute md:inset-0 md:object-cover"
+            style={{ objectPosition: 'center top' }}
           />
         </div>
       </section>

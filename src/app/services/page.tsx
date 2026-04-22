@@ -33,13 +33,19 @@ export default function ServicesPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
-        .from('services')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order')
-      setServices(data || [])
-      setLoading(false)
+      try {
+        const { data } = await supabase
+          .from('services')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order')
+        setServices(data || [])
+      } catch {
+        // If fetch fails (e.g. env var missing on Vercel), show empty/coming-soon state
+        setServices([])
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
