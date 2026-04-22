@@ -82,7 +82,12 @@ export default function AdminAppointmentsPage() {
             <div><label className="block text-xs font-bold text-gray-600 mb-1.5">Time</label>
               <select value={form.preferred_time} onChange={e=>setForm(p=>({...p,preferred_time:e.target.value}))} className={inp}>
                 <option value="">— Select —</option>
-                {['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM'].map(t=><option key={t}>{t}</option>)}
+                <optgroup label="☀️ Morning (10:30 AM – 2:00 PM)">
+                  {['10:30 AM','11:00 AM','11:30 AM','12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM'].map(t=><option key={t}>{t}</option>)}
+                </optgroup>
+                <optgroup label="🌙 Evening (5:30 PM – 8:30 PM)">
+                  {['5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM'].map(t=><option key={t}>{t}</option>)}
+                </optgroup>
               </select></div>
           </div>
           <div className="mb-4"><label className="block text-xs font-bold text-gray-600 mb-1.5">Problem / Reason</label>

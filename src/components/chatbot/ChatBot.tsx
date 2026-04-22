@@ -15,7 +15,7 @@ const RULES = [
   { k: ['limp','leg','bone','fracture'], r: `🦴 Limping\n\n⚠️ NEVER give Paracetamol/Aspirin — TOXIC to pets!\n\n🚨 Needs vet exam urgently. Book now.` },
   { k: ['fever','temperature','hot'], r: `🌡️ Fever\n\nNormal: 38.3–39.2°C\n\n❌ NO human painkillers!\n\n🚨 Above 40°C = emergency. Come in today.` },
   { k: ['price','cost','fee','how much'], r: `💰 Price List\n\n• Checkup: ₹500\n• Vaccination: ₹300–₹1,200\n• Deworming: ₹250\n• Blood Test: ₹700\n• X-Ray: ₹900\n• Grooming: ₹400–₹900\n\n🎁 Monsoon Package ₹999` },
-  { k: ['hour','timing','open','when'], r: `⏰ Clinic Hours\n\nMon–Sat: 9:00 AM – 6:00 PM\nSunday: Emergency only\n\n📍 Near Hindalga, Hanuman Nagar, Belagavi\n📞 094838 52691` },
+  { k: ['hour','timing','open','when'], r: `⏰ Clinic Hours\n\n☀️ Morning: 10:30 AM – 2:00 PM\n🌙 Evening: 5:30 PM – 8:30 PM\n\n📅 Mon – Sat (Sunday: Emergency only)\n\n📍 Near Hindalga, Hanuman Nagar, Belagavi\n📞 094838 52691` },
   { k: ['address','location','where'], r: `📍 Location\n\nGanapati Temple, double road,\nnear Hindalga, beside Shambavi Clinic,\nHanuman Nagar, Belagavi 590019\n\n📞 094838 52691` },
   { k: ['puppy','kitten','new pet'], r: `🐣 New Pet Package — ₹799\n\n✅ First health exam\n✅ First vaccination\n✅ Deworming treatment\n✅ Diet & nutrition guide\n✅ Free 1-month follow-up call` },
 ]

@@ -2,10 +2,16 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
-const TIME_SLOTS = [
-  '9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM',
-  '12:00 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM',
+// Morning session: 10:30 AM – 2:00 PM | Evening session: 5:30 PM – 8:30 PM
+const MORNING_SLOTS = [
+  '10:30 AM', '11:00 AM', '11:30 AM',
+  '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM',
 ]
+const EVENING_SLOTS = [
+  '5:30 PM', '6:00 PM', '6:30 PM',
+  '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
+]
+const TIME_SLOTS = [...MORNING_SLOTS, ...EVENING_SLOTS]
 
 export default function BookPage() {
   const [form, setForm] = useState({
@@ -163,7 +169,12 @@ export default function BookPage() {
               <select value={form.preferred_time} onChange={e=>set('preferred_time',e.target.value)}
                 className={inp} style={{ borderColor:'#E5E7EB' }}>
                 <option value="">— Select time —</option>
-                {TIME_SLOTS.map(t=><option key={t}>{t}</option>)}
+                <optgroup label="☀️ Morning (10:30 AM – 2:00 PM)">
+                  {MORNING_SLOTS.map(t=><option key={t}>{t}</option>)}
+                </optgroup>
+                <optgroup label="🌙 Evening (5:30 PM – 8:30 PM)">
+                  {EVENING_SLOTS.map(t=><option key={t}>{t}</option>)}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -172,13 +183,28 @@ export default function BookPage() {
           {form.preferred_date && (
             <div className="mb-5">
               <p className="text-xs font-bold text-gray-500 mb-2">Quick Select Time:</p>
-              <div className="grid grid-cols-4 gap-2 max-sm:grid-cols-3">
-                {TIME_SLOTS.map(slot => (
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1.5">☀️ Morning — 10:30 AM to 2:00 PM</p>
+              <div className="grid grid-cols-4 gap-2 max-sm:grid-cols-3 mb-3">
+                {MORNING_SLOTS.map(slot => (
                   <button key={slot} onClick={() => set('preferred_time', slot)}
                     className="py-2 text-xs font-semibold rounded-lg border transition-all"
                     style={{
                       borderColor: form.preferred_time===slot ? '#F59E0B' : '#E5E7EB',
                       background: form.preferred_time===slot ? '#F59E0B' : '#fff',
+                      color: form.preferred_time===slot ? '#fff' : '#374151',
+                    }}>
+                    {slot}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1.5">🌙 Evening — 5:30 PM to 8:30 PM</p>
+              <div className="grid grid-cols-4 gap-2 max-sm:grid-cols-3">
+                {EVENING_SLOTS.map(slot => (
+                  <button key={slot} onClick={() => set('preferred_time', slot)}
+                    className="py-2 text-xs font-semibold rounded-lg border transition-all"
+                    style={{
+                      borderColor: form.preferred_time===slot ? '#6366F1' : '#E5E7EB',
+                      background: form.preferred_time===slot ? '#6366F1' : '#fff',
                       color: form.preferred_time===slot ? '#fff' : '#374151',
                     }}>
                     {slot}
